@@ -92,16 +92,12 @@ Full setup walkthrough (28m) by VelvetShark.
   **@delankesita** • `publishing` `zhihu` `automation` `pip`
 
 Auto-publish articles to Zhihu with trending topics fetch, AI writing, and image upload. Install via `pip install zhihu-publisher`. Full workflow from hotspots → writing → publishing.
-
-  <img src="https://img.shields.io/github/stars/delankesita/zhihu-publisher" alt="GitHub stars" />
 </Card>
 
 <Card title="OpenClaw Skills Collection" icon="code" href="https://github.com/delankesita/openclaw-skills">
   **@delankesita** • `skills` `collection` `publishing` `analysis`
 
 12+ skills for content creation, data analysis, and automation: WeWrite (WeChat MP), stock analysis, hot tracker, feed grabber, and more.
-
-  <img src="https://img.shields.io/github/stars/delankesita/openclaw-skills" alt="GitHub stars" />
 </Card>
 
 <Card title="PR Review → Telegram Feedback" icon="code-pull-request" href="https://x.com/i/status/2010878524543131691">
@@ -432,3 +428,4 @@ Have something to share? We'd love to feature it!
     We'll add standout projects to this page
   </Step>
 </Steps>
+
