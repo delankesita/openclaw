@@ -390,6 +390,36 @@ function listGroupPolicyOpen(cfg: OpenClawConfig): string[] {
 }
 
 function hasConfiguredGroupTargets(section: Record<string, unknown>): boolean {
+
+function listDmPolicyOpen(cfg: OpenClawConfig): string[] {
+  const out: string[] = [];
+  const channels = cfg.channels as Record<string, unknown> | undefined;
+  if (!channels || typeof channels !== "object") {
+    return out;
+  }
+  for (const [channelId, value] of Object.entries(channels)) {
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+    const section = value as Record<string, unknown>;
+    if (section.dmPolicy === "open") {
+      out.push(`channels.${channelId}.dmPolicy`);
+    }
+    const accounts = section.accounts;
+    if (accounts && typeof accounts === "object") {
+      for (const [accountId, accountVal] of Object.entries(accounts)) {
+        if (!accountVal || typeof accountVal !== "object") {
+          continue;
+        }
+        const acc = accountVal as Record<string, unknown>;
+        if (acc.dmPolicy === "open") {
+          out.push(`channels.${channelId}.accounts.${accountId}.dmPolicy`);
+        }
+      }
+    }
+  }
+  return out;
+}
   const groupKeys = ["groups", "guilds", "channels", "rooms"];
   return groupKeys.some((key) => {
     const value = section[key];
@@ -1292,12 +1322,16 @@ export function collectSmallModelRiskFindings(params: {
 export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
   const findings: SecurityAuditFinding[] = [];
   const openGroups = listGroupPolicyOpen(cfg);
-  if (openGroups.length === 0) {
+  const openDms = listDmPolicyOpen(cfg);
+
+  if (openGroups.length === 0 && openDms.length === 0) {
     return findings;
   }
 
   const elevatedEnabled = cfg.tools?.elevated?.enabled !== false;
-  if (elevatedEnabled) {
+
+  // Check open groups with elevated tools
+  if (openGroups.length > 0 && elevatedEnabled) {
     findings.push({
       checkId: "security.exposure.open_groups_with_elevated",
       severity: "critical",
@@ -1309,9 +1343,23 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
     });
   }
 
+  // Check open DMs with elevated tools
+  if (openDms.length > 0 && elevatedEnabled) {
+    findings.push({
+      checkId: "security.exposure.open_dms_with_elevated",
+      severity: "critical",
+      title: "Open dmPolicy with elevated tools enabled",
+      detail:
+        `Found dmPolicy="open" at:\n${openDms.map((p) => `- ${p}`).join("\n")}\n` +
+        "With tools.elevated enabled, a prompt injection in open DMs can become a high-impact incident.",
+      remediation: `Set dmPolicy="allowlist" or dmPolicy="restricted" and keep elevated allowlists extremely tight.`,
+    });
+  }
+
   const { riskyContexts, hasRuntimeRisk } = collectRiskyToolExposureContexts(cfg);
 
-  if (riskyContexts.length > 0) {
+  // Check open groups with runtime/fs tools
+  if (openGroups.length > 0 && riskyContexts.length > 0) {
     findings.push({
       checkId: "security.exposure.open_groups_with_runtime_or_fs",
       severity: hasRuntimeRisk ? "critical" : "warn",
@@ -1322,6 +1370,21 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
         "Prompt injection in open groups can trigger command/file actions in these contexts.",
       remediation:
         'For open groups, prefer tools.profile="messaging" (or deny group:runtime/group:fs), set tools.fs.workspaceOnly=true, and use agents.defaults.sandbox.mode="all" for exposed agents.',
+    });
+  }
+
+  // Check open DMs with runtime/fs tools
+  if (openDms.length > 0 && riskyContexts.length > 0) {
+    findings.push({
+      checkId: "security.exposure.open_dms_with_runtime_or_fs",
+      severity: hasRuntimeRisk ? "critical" : "warn",
+      title: "Open dmPolicy with runtime/filesystem tools exposed",
+      detail:
+        `Found dmPolicy="open" at:\n${openDms.map((p) => `- ${p}`).join("\n")}\n` +
+        `Risky tool exposure contexts:\n${riskyContexts.map((line) => `- ${line}`).join("\n")}\n` +
+        "Prompt injection in open DMs can trigger command/file actions in these contexts.",
+      remediation:
+        'For open DMs, prefer tools.profile="messaging" (or deny group:runtime/group:fs), set tools.fs.workspaceOnly=true, and use agents.defaults.sandbox.mode="all" for exposed agents.',
     });
   }
 
